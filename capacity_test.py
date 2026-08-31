@@ -247,6 +247,7 @@ def main():
     ap.add_argument("--server-dir", default="/opt/purpur-test")
     ap.add_argument("--outdir", default=None, help="默认 <server-dir>/results")
     ap.add_argument("--ping", action="store_true", help="只测试 RCON 连通性后退出")
+    ap.add_argument("--stop", action="store_true", help="向服务器发送 stop(优雅关服)后退出")
     ap.add_argument("--keep-entities", action="store_true", help="结束后不清理实体")
     args = ap.parse_args()
 
@@ -266,6 +267,13 @@ def main():
     rc.connect()
     if args.ping:
         print(strip_colors(rc.cmd("list")).strip())
+        return
+    if args.stop:
+        try:
+            rc.cmd("stop", retries=1)
+        except Exception:
+            pass  # 服务器关闭时连接可能先断,不算失败
+        print("已发送 stop")
         return
 
     outdir = args.outdir or os.path.join(args.server_dir, "results")

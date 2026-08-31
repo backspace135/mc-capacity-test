@@ -2,18 +2,18 @@
 # 一键容量压测(在服务器本机上直接运行)
 # 自动:下载 Purpur → 写配置(虚空世界/RCON/激活范围) → 启动 Docker 容器 → 执行测试 → 结果存 ./results/
 #
-# 用法:
-#   ./run_capacity_test.sh [capacity_test.py 的参数...]
+# 用法(在工具包根目录下):
+#   ./Linux/run_capacity_test.sh [capacity_test.py 的参数...]
 # 例:
-#   ./run_capacity_test.sh                                       # 完整测试(僵尸,自适应步长,约 10 分钟)
-#   ./run_capacity_test.sh --preset armor_stand --step 2000
-#   ./run_capacity_test.sh --warmup 120 --measure 300 --interval 10  # 长窗口精测
+#   ./Linux/run_capacity_test.sh                                       # 完整测试(僵尸,自适应步长,约 10 分钟)
+#   ./Linux/run_capacity_test.sh --preset armor_stand --step 2000
+#   ./Linux/run_capacity_test.sh --warmup 120 --measure 300 --interval 10  # 长窗口精测
 # 环境变量:
 #   DIR=/opt/purpur-test  服务器数据目录
 #   CPUSET=0-7            容器绑核(保证测试间可比)
 #   NOHUP=1               后台运行(长测试防终端断开),自行 tail 日志
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."   # 工具包根目录:capacity_test.py 与 results/ 都在这里
 
 DIR=${DIR:-/opt/purpur-test}
 CPUSET=${CPUSET:-0-7}
@@ -72,14 +72,16 @@ docker inspect purpur-test >/dev/null 2>&1 \
        java -Xms4G -Xmx4G -XX:+UseG1GC "-Xlog:gc*:file=/data/gc.log:time,uptime" \
        -jar purpur.jar nogui >/dev/null
 
-echo "== [3/4] 等待 RCON 就绪 =="
+echo "== [3/4] 等待 RCON 就绪(首次启动要生成世界,稍慢)=="
 for i in $(seq 1 60); do
   if python3 capacity_test.py --server-dir "$DIR" --ping 2>/dev/null; then
     break
   fi
-  [ "$i" = 60 ] && { echo "RCON 90s 未就绪,查日志: docker logs purpur-test"; exit 1; }
+  [ "$i" = 60 ] && { echo "RCON 180s 未就绪,查日志: docker logs purpur-test"; exit 1; }
+  printf '\r  等待中 %ds / 最多 180s ' $((i * 3))
   sleep 3
 done
+echo
 
 echo "== [4/4] 执行容量测试(结果在 ./results/)=="
 mkdir -p results
