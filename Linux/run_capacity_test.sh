@@ -173,19 +173,19 @@ else
   if [ "$ALIVE" = 1 ]; then
     echo "  服务器已在运行(PID $(head -1 "$PIDFILE")),直接复用"
   else
-    TASKSET=()
+    TS_CMD=""
     if command -v taskset >/dev/null 2>&1; then
-      TASKSET=(taskset -c "$CPUSET")
+      TS_CMD="taskset -c $CPUSET"
     else
       echo "  [!] 没有 taskset,不绑核(不影响本次测试,跨机对比时注意)"
     fi
     # setsid + </dev/null:防止挂住终端/ssh 会话
-    (cd "$DIR" && setsid nohup ${TASKSET[@]+"${TASKSET[@]}"} \
-        java -Xms4G -Xmx4G -XX:+UseG1GC "-Xlog:gc*:file=gc.log:time,uptime" \
-        -jar purpur.jar nogui \
-        > server.log 2>&1 < /dev/null &
-     echo $! > "$PIDFILE")
-    echo "  已启动 java(PID $(head -1 "$PIDFILE")),日志: $DIR/server.log"
+    # PID 由子 shell 先写 $$ 再 exec 得到(setsid 可能 fork,外层 $! 不可靠)
+    (cd "$DIR" && setsid nohup bash -c \
+        "echo \$\$ > server.pid; exec $TS_CMD java -Xms4G -Xmx4G -XX:+UseG1GC '-Xlog:gc*:file=gc.log:time,uptime' -jar purpur.jar nogui" \
+        > server.log 2>&1 < /dev/null &)
+    for i in $(seq 1 50); do [ -s "$PIDFILE" ] && break; sleep 0.1; done
+    echo "  已启动 java(PID $(head -1 "$PIDFILE" 2>/dev/null || echo '?')),日志: $DIR/server.log"
     echo "  [!] 直跑模式 RCON(25575)监听所有网卡,密码随机;机器有公网 IP 的话请在防火墙拦掉该端口"
   fi
 fi
