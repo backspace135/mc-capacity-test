@@ -25,6 +25,7 @@
   -NoDocker      本机 Java 直跑(不加任何开关时:有 Docker 用 Docker,没有自动切直跑)
   -Background    测试进程后台运行(长测试防终端断开)
   -StopServer    只停服,不测试
+  -Menu          交互式选择运行方式(bat 双击入口用;bat 必须保持纯 ASCII,cmd 解析中文批处理会出乱码)
 #>
 [CmdletBinding()]
 param(
@@ -34,10 +35,13 @@ param(
   [switch]$NoDocker,
   [switch]$Background,
   [switch]$StopServer,
+  [switch]$Menu,
   [Parameter(ValueFromRemainingArguments = $true)][string[]]$TestArgs = @()
 )
 
-$ErrorActionPreference = 'Stop'
+# 不用 Stop:PS 5.1 下它会把外部命令(java/docker/curl)重定向后的 stderr 当致命错误抛出;
+# 外部命令的失败一律靠 $LASTEXITCODE 判断,关键 cmdlet 单独加 -ErrorAction Stop
+$ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 Set-Location (Split-Path -Parent $PSScriptRoot)   # 工具包根目录:capacity_test.py 与 results\ 都在这里
 
@@ -119,6 +123,26 @@ if ($StopServer) {
   exit 0
 }
 
+# ---- 交互菜单(bat 双击入口) ----
+if ($Menu -and -not ($Docker -or $NoDocker)) {
+  Write-Host '============================================' -ForegroundColor Cyan
+  Write-Host '  Minecraft 服务器容量压测(一键版)' -ForegroundColor Cyan
+  Write-Host '  完整测试约 10 分钟,期间请勿关窗口' -ForegroundColor Cyan
+  Write-Host '============================================' -ForegroundColor Cyan
+  Write-Host ''
+  Write-Host '选择运行方式:'
+  Write-Host '  [1] 自动 - 有 Docker 用 Docker,没有就本机 Java 直跑(推荐)'
+  Write-Host '  [2] 强制 Docker - Docker Desktop 不可用则报错退出'
+  Write-Host '  [3] 不用 Docker - 本机 Java 25+ 直跑'
+  $sel = Read-Host '输入 1/2/3 后回车(直接回车 = 1 自动)'
+  switch ("$sel".Trim()) {
+    '2' { $Docker = $true }
+    '3' { $NoDocker = $true }
+    default { }
+  }
+  Write-Host ''
+}
+
 # ---- 选择运行模式 ----
 if ($Docker -and $NoDocker) { Write-Host '-Docker 与 -NoDocker 不能同时指定'; exit 1 }
 $UseDocker = -not $NoDocker
@@ -160,7 +184,7 @@ if (-not (Test-Path $jar)) {
         & curl.exe -fL --retry 3 --progress-bar -o $jar $PurpurUrl
         if ($LASTEXITCODE -ne 0) { throw "curl 退出码 $LASTEXITCODE" }
       } else {
-        Invoke-WebRequest -Uri $PurpurUrl -OutFile $jar
+        Invoke-WebRequest -Uri $PurpurUrl -OutFile $jar -ErrorAction Stop
       }
       $ok = $true; break
     }
@@ -239,7 +263,7 @@ if ($UseDocker) {
     $jArgs = @('-Xms4G', '-Xmx4G', '-XX:+UseG1GC', '-Xlog:gc*:file=gc.log:time,uptime',
                '-jar', 'purpur.jar', 'nogui')
     $proc = Start-Process -FilePath 'java' -ArgumentList $jArgs -WorkingDirectory $Dir `
-      -WindowStyle Hidden -PassThru `
+      -WindowStyle Hidden -PassThru -ErrorAction Stop `
       -RedirectStandardOutput (Join-Path $Dir 'server.log') `
       -RedirectStandardError (Join-Path $Dir 'server-err.log')
     Set-Content -Path $PidFile -Value $proc.Id
@@ -280,8 +304,8 @@ if ($Background) {
   $log = "results\run-$ts.log"
   # Start-Process 不会自动给含空格的参数加引号
   $quoted = $runArgs | ForEach-Object { if ($_ -match '\s') { '"{0}"' -f $_ } else { $_ } }
-  $bg = Start-Process -FilePath $PyExe -ArgumentList $quoted -WorkingDirectory $PSScriptRoot `
-    -WindowStyle Hidden -PassThru `
+  $bg = Start-Process -FilePath $PyExe -ArgumentList $quoted -WorkingDirectory (Get-Location) `
+    -WindowStyle Hidden -PassThru -ErrorAction Stop `
     -RedirectStandardOutput $log -RedirectStandardError "results\run-$ts.err.log"
   Write-Host "已后台运行(PID $($bg.Id))。看进度: Get-Content -Wait $log"
   exit 0
@@ -290,5 +314,10 @@ if ($Background) {
 $code = $LASTEXITCODE
 
 Write-Host ''
-Write-Host '完成。停服: 双击 Windows\停服.bat,或 .\Windows\run_capacity_test.ps1 -StopServer' -ForegroundColor Cyan
+if ($code -eq 0) {
+  Write-Host '[压测完成,结论在上方,CSV 在 results\ 目录]' -ForegroundColor Green
+} else {
+  Write-Host '[压测未正常完成,请看上方提示]' -ForegroundColor Red
+}
+Write-Host '停服: 双击 Windows\停服.bat,或 .\Windows\run_capacity_test.ps1 -StopServer' -ForegroundColor Cyan
 exit $code
