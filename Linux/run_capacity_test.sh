@@ -1,27 +1,119 @@
 #!/usr/bin/env bash
 # 一键容量压测(在服务器本机上直接运行)
-# 自动:下载 Purpur → 写配置(虚空世界/RCON/激活范围) → 启动 Docker 容器 → 执行测试 → 结果存 ./results/
+# 自动:下载 Purpur → 写配置(虚空世界/RCON/激活范围) → 启动服务器 → 执行测试 → 结果存 ./results/
+#
+# 两种运行方式:
+#   Docker 模式(默认): 需要 docker,支持绑核与内存限制,RCON 只绑 127.0.0.1
+#   直跑模式(--no-docker): 不需要 docker,用本机 Java 25+ 直接启动 Purpur,绑核转为 taskset
 #
 # 用法(在工具包根目录下):
-#   ./Linux/run_capacity_test.sh [capacity_test.py 的参数...]
+#   ./Linux/run_capacity_test.sh [选项] [capacity_test.py 的参数...]
 # 例:
 #   ./Linux/run_capacity_test.sh                                       # 完整测试(僵尸,自适应步长,约 10 分钟)
+#   ./Linux/run_capacity_test.sh --no-docker                           # 不用 Docker,本机 Java 直跑
 #   ./Linux/run_capacity_test.sh --preset armor_stand --step 2000
 #   ./Linux/run_capacity_test.sh --warmup 120 --measure 300 --interval 10  # 长窗口精测
+#   ./Linux/run_capacity_test.sh --stop-server                         # 停服(容器或直跑进程)
+# 选项(脚本自己消费,其余参数透传给 capacity_test.py):
+#   --docker       强制 Docker 模式:docker 不可用时直接报错,不悄悄降级(保证环境可比)
+#   --no-docker    本机 Java 直跑(不加任何开关时:有 docker 用 docker,没有自动切直跑)
+#   --stop-server  只停服,不测试
 # 环境变量:
-#   DIR=/opt/purpur-test  服务器数据目录
-#   CPUSET=0-7            容器绑核(保证测试间可比)
+#   DIR=/opt/purpur-test  服务器数据目录(直跑模式默认 ~/purpur-test,免 root)
+#   CPUSET=0-7            绑核(保证测试间可比;直跑模式经 taskset 生效)
 #   NOHUP=1               后台运行(长测试防终端断开),自行 tail 日志
 set -euo pipefail
 cd "$(dirname "$0")/.."   # 工具包根目录:capacity_test.py 与 results/ 都在这里
 
-DIR=${DIR:-/opt/purpur-test}
 CPUSET=${CPUSET:-0-7}
 IMAGE="eclipse-temurin:25-jre"
 PURPUR_URL="https://api.purpurmc.org/v2/purpur/26.2/latest/download"
 
-command -v docker >/dev/null || { echo "需要 docker"; exit 1; }
+# ---- 拆分脚本选项与透传参数 ----
+FORCE_DOCKER=0; NO_DOCKER=0; STOP_SERVER=0
+PASS=()
+for a in "$@"; do
+  case "$a" in
+    --docker)      FORCE_DOCKER=1 ;;
+    --no-docker)   NO_DOCKER=1 ;;
+    --stop-server) STOP_SERVER=1 ;;
+    *)             PASS+=("$a") ;;
+  esac
+done
+if [ "$FORCE_DOCKER" = 1 ] && [ "$NO_DOCKER" = 1 ]; then
+  echo "--docker 与 --no-docker 不能同时指定"; exit 1
+fi
+
 command -v python3 >/dev/null || { echo "需要 python3"; exit 1; }
+
+docker_ok() {
+  command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
+}
+
+# ---- --stop-server: 只停服 ----
+if [ "$STOP_SERVER" = 1 ]; then
+  DIR=${DIR:-}
+  done_stop=0
+  if docker_ok && docker inspect purpur-test >/dev/null 2>&1; then
+    docker stop purpur-test >/dev/null
+    echo "已停止容器 purpur-test(数据保留,下次秒起)"
+    done_stop=1
+  fi
+  for d in ${DIR:+"$DIR"} "$HOME/purpur-test" /opt/purpur-test; do
+    PIDFILE="$d/server.pid"
+    [ -f "$PIDFILE" ] || continue
+    SRV_PID=$(head -1 "$PIDFILE")
+    if kill -0 "$SRV_PID" 2>/dev/null; then
+      # 先走 RCON 优雅关服,30s 不退再强杀
+      python3 capacity_test.py --server-dir "$d" --stop >/dev/null 2>&1 || true
+      for i in $(seq 1 30); do
+        kill -0 "$SRV_PID" 2>/dev/null || break
+        sleep 1
+      done
+      kill -0 "$SRV_PID" 2>/dev/null && kill -9 "$SRV_PID" 2>/dev/null || true
+      echo "已停止直跑服务器(PID $SRV_PID)"
+    fi
+    rm -f "$PIDFILE"
+    done_stop=1
+  done
+  [ "$done_stop" = 1 ] || echo "未发现在运行的测试服"
+  exit 0
+fi
+
+# ---- 选择运行模式 ----
+USE_DOCKER=1
+[ "$NO_DOCKER" = 1 ] && USE_DOCKER=0
+if [ "$USE_DOCKER" = 1 ] && ! docker_ok; then
+  if [ "$FORCE_DOCKER" = 1 ]; then
+    echo "docker 不可用(未安装或当前用户无权限),而 --docker 要求必须用 Docker,退出"
+    exit 1
+  fi
+  echo "[!] docker 不可用(未安装或当前用户无权限),改用本机 Java 直跑"
+  USE_DOCKER=0
+fi
+if [ "$USE_DOCKER" = 1 ]; then
+  DIR=${DIR:-/opt/purpur-test}
+  echo "运行模式: Docker 容器"
+else
+  DIR=${DIR:-$HOME/purpur-test}   # 直跑默认放家目录,免 root
+  echo "运行模式: 本机 Java 直跑"
+  # 直跑需要 Java 25+(Purpur 26.2 的要求)
+  JMAJOR=""
+  if command -v java >/dev/null 2>&1; then
+    JVER=$(java -version 2>&1 | awk -F'"' '/version/ {print $2; exit}')  # 25.0.1 / 1.8.0_392 / 25-ea
+    case "$JVER" in
+      1.*) JMAJOR=${JVER#1.}; JMAJOR=${JMAJOR%%[!0-9]*} ;;   # "1.8.0" 老格式取次版本
+      *)   JMAJOR=${JVER%%[!0-9]*} ;;
+    esac
+  fi
+  if [ -z "$JMAJOR" ] || [ "$JMAJOR" -lt 25 ]; then
+    CUR=${JMAJOR:+Java $JMAJOR}; CUR=${CUR:-未安装}
+    echo "直跑模式需要 Java 25+(当前: $CUR)。请装 Temurin 25: https://adoptium.net/"
+    echo "(国内可用清华镜像: https://mirrors.tuna.tsinghua.edu.cn/Adoptium/)"
+    exit 1
+  fi
+fi
+PIDFILE="$DIR/server.pid"
 
 echo "== [1/4] 准备 $DIR(jar/eula/配置)=="
 mkdir -p "$DIR"
@@ -31,7 +123,7 @@ if [ ! -f "$DIR/purpur.jar" ]; then
 fi
 echo "eula=true" > "$DIR/eula.txt"
 if [ ! -f "$DIR/server.properties" ]; then
-  # RCON 只绑 127.0.0.1,密码随机生成,记录在 server.properties 里
+  # RCON 只绑 127.0.0.1(Docker 模式),密码随机生成,记录在 server.properties 里
   RCON_PW=$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')
   cat > "$DIR/server.properties" <<PROPS
 level-type=minecraft:flat
@@ -64,20 +156,49 @@ world-settings:
 YML
 fi
 
-echo "== [2/4] 确保容器 purpur-test 运行(绑核 $CPUSET)=="
-docker inspect purpur-test >/dev/null 2>&1 \
-  && docker start purpur-test >/dev/null \
-  || docker run -d --name purpur-test --memory 6g --cpuset-cpus "$CPUSET" \
-       -p 127.0.0.1:25575:25575 -p 25565:25565 -v "$DIR:/data" -w /data "$IMAGE" \
-       java -Xms4G -Xmx4G -XX:+UseG1GC "-Xlog:gc*:file=/data/gc.log:time,uptime" \
-       -jar purpur.jar nogui >/dev/null
+if [ "$USE_DOCKER" = 1 ]; then
+  echo "== [2/4] 确保容器 purpur-test 运行(绑核 $CPUSET)=="
+  docker inspect purpur-test >/dev/null 2>&1 \
+    && docker start purpur-test >/dev/null \
+    || docker run -d --name purpur-test --memory 6g --cpuset-cpus "$CPUSET" \
+         -p 127.0.0.1:25575:25575 -p 25565:25565 -v "$DIR:/data" -w /data "$IMAGE" \
+         java -Xms4G -Xmx4G -XX:+UseG1GC "-Xlog:gc*:file=/data/gc.log:time,uptime" \
+         -jar purpur.jar nogui >/dev/null
+else
+  echo "== [2/4] 确保本机 Java 服务器运行(taskset 绑核 $CPUSET)=="
+  ALIVE=0
+  if [ -f "$PIDFILE" ] && kill -0 "$(head -1 "$PIDFILE")" 2>/dev/null; then
+    ALIVE=1
+  fi
+  if [ "$ALIVE" = 1 ]; then
+    echo "  服务器已在运行(PID $(head -1 "$PIDFILE")),直接复用"
+  else
+    TASKSET=()
+    if command -v taskset >/dev/null 2>&1; then
+      TASKSET=(taskset -c "$CPUSET")
+    else
+      echo "  [!] 没有 taskset,不绑核(不影响本次测试,跨机对比时注意)"
+    fi
+    # setsid + </dev/null:防止挂住终端/ssh 会话
+    (cd "$DIR" && setsid nohup ${TASKSET[@]+"${TASKSET[@]}"} \
+        java -Xms4G -Xmx4G -XX:+UseG1GC "-Xlog:gc*:file=gc.log:time,uptime" \
+        -jar purpur.jar nogui \
+        > server.log 2>&1 < /dev/null &
+     echo $! > "$PIDFILE")
+    echo "  已启动 java(PID $(head -1 "$PIDFILE")),日志: $DIR/server.log"
+    echo "  [!] 直跑模式 RCON(25575)监听所有网卡,密码随机;机器有公网 IP 的话请在防火墙拦掉该端口"
+  fi
+fi
 
 echo "== [3/4] 等待 RCON 就绪(首次启动要生成世界,稍慢)=="
 for i in $(seq 1 60); do
   if python3 capacity_test.py --server-dir "$DIR" --ping 2>/dev/null; then
     break
   fi
-  [ "$i" = 60 ] && { echo "RCON 180s 未就绪,查日志: docker logs purpur-test"; exit 1; }
+  if [ "$i" = 60 ]; then
+    HINT=$([ "$USE_DOCKER" = 1 ] && echo "docker logs purpur-test" || echo "$DIR/server.log")
+    echo "RCON 180s 未就绪,查日志: $HINT"; exit 1
+  fi
   printf '\r  等待中 %ds / 最多 180s ' $((i * 3))
   sleep 3
 done
@@ -87,10 +208,14 @@ echo "== [4/4] 执行容量测试(结果在 ./results/)=="
 mkdir -p results
 if [ "${NOHUP:-0}" = "1" ]; then
   TS=$(date +%Y%m%d-%H%M%S)
-  nohup python3 -u capacity_test.py --server-dir "$DIR" --outdir ./results "$@" > "results/run-$TS.log" 2>&1 &
+  nohup python3 -u capacity_test.py --server-dir "$DIR" --outdir ./results ${PASS[@]+"${PASS[@]}"} > "results/run-$TS.log" 2>&1 &
   echo "已后台运行(PID $!)。看进度: tail -f results/run-$TS.log"
   exit 0
 fi
-python3 -u capacity_test.py --server-dir "$DIR" --outdir ./results "$@"
+python3 -u capacity_test.py --server-dir "$DIR" --outdir ./results ${PASS[@]+"${PASS[@]}"}
 
-echo "完成。停服: docker stop purpur-test"
+if [ "$USE_DOCKER" = 1 ]; then
+  echo "完成。停服: docker stop purpur-test(或 ./Linux/run_capacity_test.sh --stop-server)"
+else
+  echo "完成。停服: ./Linux/run_capacity_test.sh --stop-server"
+fi

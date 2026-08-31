@@ -20,7 +20,7 @@
 
 在**要被测的服务器上**直接运行本工具包，需要：
 
-- **Linux**：`docker`（当前用户可直接使用，root 或 docker 组）、`python3`、`curl`；
+- **Linux**：`python3`、`curl`；默认用 `docker`（当前用户可直接使用，root 或 docker 组），**没有 Docker 也能跑**——脚本会自动切到本机 Java 直跑（需 Java 25+，[Temurin](https://adoptium.net/)），或用 `--no-docker` 明确指定；
 - **Windows**：Python 3；默认用 Docker Desktop（Linux 容器模式），**没有 Docker 也能跑**——脚本会自动切到本机 Java 直跑（需 Java 25+，[Temurin](https://adoptium.net/)），或用 `-NoDocker` 明确指定；
 - 两者都要求：空闲内存 ≥ 6GB，端口 25565/25575 未被占用。
 
@@ -62,22 +62,29 @@ NOHUP=1 ./Linux/run_capacity_test.sh
 
 # 3) 长窗口精测(每级预热≤2分钟+测量5分钟,复现旧版慢速方法时用)
 NOHUP=1 ./Linux/run_capacity_test.sh --warmup 120 --measure 300 --interval 10
+
+# 明确不用 Docker(需要本机 Java 25+,绑核经 taskset 生效;
+# 不加此参数时,没装 Docker 也会自动切到直跑模式)
+./Linux/run_capacity_test.sh --no-docker
+
+# 停服(容器或直跑进程均可)
+./Linux/run_capacity_test.sh --stop-server
 ```
 
 第一次运行会下载 jar（~64MB）和 Docker 镜像（直跑模式无镜像），多花一两分钟；之后复用，几秒就绪。
 
 ## 参数
 
-环境变量（Linux，放在命令前面）/ 开关（Windows，`-` 开头）：
+环境变量（Linux，放在命令前面）/ 开关（Linux `--` 开头，Windows `-` 开头）：
 
-| Linux 变量 | Windows 参数 | 默认 | 说明 |
+| Linux | Windows 参数 | 默认 | 说明 |
 |---|---|---|---|
-| `DIR` | `-Dir` | `/opt/purpur-test` / `%USERPROFILE%\purpur-test` | 测试服数据目录 |
-| `CPUSET` | `-CpuSet` | `0-7` | 绑定的 CPU 核（保证测试间可比，别改来改去；Windows 直跑模式转为 CPU 亲和性） |
-| `NOHUP=1` | `-Background` | 关 | 后台运行，长测试必开 |
-| — | `-Docker` | 关 | Windows 专属：强制 Docker 模式，Docker 不可用时报错退出（不悄悄降级，保证环境可比） |
-| — | `-NoDocker` | 关 | Windows 专属：不用 Docker，本机 Java 25+ 直跑；两个开关都不加 = 自动（有 Docker 用 Docker） |
-| — | `-StopServer` | — | Windows 专属：只停服，不测试 |
+| `DIR` 变量 | `-Dir` | `/opt/purpur-test`（直跑 `~/purpur-test`）/ `%USERPROFILE%\purpur-test` | 测试服数据目录 |
+| `CPUSET` 变量 | `-CpuSet` | `0-7` | 绑定的 CPU 核（保证测试间可比，别改来改去；直跑模式下 Linux 经 `taskset`、Windows 转为 CPU 亲和性） |
+| `NOHUP=1` 变量 | `-Background` | 关 | 后台运行，长测试必开 |
+| `--docker` | `-Docker` | 关 | 强制 Docker 模式，Docker 不可用时报错退出（不悄悄降级，保证环境可比） |
+| `--no-docker` | `-NoDocker` | 关 | 不用 Docker，本机 Java 25+ 直跑；两个开关都不加 = 自动（有 Docker 用 Docker，没有自动切直跑） |
+| `--stop-server` | `-StopServer` | — | 只停服，不测试（容器或直跑进程均可） |
 
 测试参数（直接跟在命令后，透传给 `capacity_test.py`）：
 
@@ -130,21 +137,22 @@ CSV 落在 `./results/`：
 
 ## 常见问题
 
-**RCON 90 秒未就绪** — 服务器首次启动生成世界较慢，或内存不足。看日志：`docker logs purpur-test`。
+**RCON 未就绪超时** — 服务器首次启动生成世界较慢，或内存不足。看日志：`docker logs purpur-test`（直跑模式看 `$DIR/server.log`）。
 
-**RCON 密码在哪** — 首次部署时随机生成，写在 `$DIR/server.properties` 的 `rcon.password=`，只绑 127.0.0.1 不对外。`capacity_test.py` 会自动读取，无需手填。
+**RCON 密码在哪** — 首次部署时随机生成，写在 `$DIR/server.properties` 的 `rcon.password=`（Docker 模式只绑 127.0.0.1 不对外）。`capacity_test.py` 会自动读取，无需手填。
 
 **提示 "spark 不可用,改用 /tick query"** — 正常。此 Purpur build 没带 spark，回退方案精度 0.1ms，在 50ms 拐点附近完全够用。
 
-**僵尸加了很多但 MSPT 不涨** — 大概率 entity-activation-range 没生效（无玩家在线时 AI 被跳过）。脚本部署时会写好 `spigot.yml`（全 0），但如果数据目录里已有旧的 `spigot.yml`，脚本不会覆盖——手动检查 `$DIR/spigot.yml` 里 `entity-activation-range` 是否全为 0，改完 `docker restart purpur-test`（Windows 直跑模式：双击 `停服.bat` 后重新运行）。
+**僵尸加了很多但 MSPT 不涨** — 大概率 entity-activation-range 没生效（无玩家在线时 AI 被跳过）。脚本部署时会写好 `spigot.yml`（全 0），但如果数据目录里已有旧的 `spigot.yml`，脚本不会覆盖——手动检查 `$DIR/spigot.yml` 里 `entity-activation-range` 是否全为 0，改完 `docker restart purpur-test`（直跑模式：先停服——Linux `--stop-server`，Windows 双击 `停服.bat`——再重新运行脚本）。
 
 **想对比多台服务器** — 把本工具包复制到每台机器各自运行，参数保持一致，比较各自的拐点值即可。
 
 **测完想停服 / 彻底删除** —
 ```bash
 # Linux
-docker stop purpur-test                                  # 停服(保留数据,下次秒起)
-docker rm -f purpur-test && sudo rm -rf /opt/purpur-test # 彻底删除
+./Linux/run_capacity_test.sh --stop-server               # 停服(容器或直跑进程均可,保留数据,下次秒起)
+docker rm -f purpur-test && sudo rm -rf /opt/purpur-test # 彻底删除(Docker 模式)
+rm -rf ~/purpur-test                                     # 彻底删除(直跑模式)
 ```
 ```powershell
 # Windows
@@ -152,6 +160,6 @@ docker rm -f purpur-test && sudo rm -rf /opt/purpur-test # 彻底删除
 docker rm -f purpur-test; Remove-Item -Recurse -Force "$env:USERPROFILE\purpur-test"  # 彻底删除
 ```
 
-**Windows 直跑模式的注意点** — RCON(25575)监听所有网卡（Minecraft 无法单独给 RCON 绑地址），密码随机生成；机器有公网 IP 的话请在防火墙拦掉 25575。首次启动 Java 时 Windows 防火墙弹窗属正常，家用机可拒绝（测试全程走本机回环）。
+**直跑模式（`--no-docker` / `-NoDocker`）的注意点** — RCON(25575)监听所有网卡（Minecraft 无法单独给 RCON 绑地址），密码随机生成；机器有公网 IP 的话请在防火墙拦掉 25575。Linux 直跑默认数据目录改为 `~/purpur-test`（免 root）。Windows 首次启动 Java 时防火墙弹窗属正常，家用机可拒绝（测试全程走本机回环）。
 
 **中途想终止测试** — Ctrl+C（前台）或 `pkill -f capacity_test.py`（后台），之后可再跑一次冒烟参数让脚本自动清场，或进服执行 `kill @e[type=zombie]`。
