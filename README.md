@@ -28,7 +28,7 @@
 
 ## 快速开始
 
-**Windows：解压后双击 `Windows\一键压测.bat`，完事双击 `Windows\停服.bat`。** 就这么多——窗口里会依次显示 `[1/4] 准备`（含 jar 下载进度）→ `[2/4] 启动服务器` → `[3/4] 等 RCON（实时计秒）` → `[4/4] 逐级加载测试`，最后直接给结论。要调参数就走 PowerShell（在工具包根目录）：
+**Windows：解压后双击 `Windows\一键压测.bat`，完事双击 `Windows\停服.bat`。** 就这么多——开头选运行方式（1 自动 / 2 强制 Docker / 3 不用 Docker，30 秒不选默认自动），然后窗口里依次显示 `[1/4] 准备`（含 jar 下载进度）→ `[2/4] 启动服务器` → `[3/4] 等 RCON（实时计秒）` → `[4/4] 逐级加载测试`，最后直接给结论。要调参数就走 PowerShell（在工具包根目录）：
 
 ```powershell
 # 冒烟(2 分钟,确认全链路通)
@@ -75,7 +75,8 @@ NOHUP=1 ./Linux/run_capacity_test.sh --warmup 120 --measure 300 --interval 10
 | `DIR` | `-Dir` | `/opt/purpur-test` / `%USERPROFILE%\purpur-test` | 测试服数据目录 |
 | `CPUSET` | `-CpuSet` | `0-7` | 绑定的 CPU 核（保证测试间可比，别改来改去；Windows 直跑模式转为 CPU 亲和性） |
 | `NOHUP=1` | `-Background` | 关 | 后台运行，长测试必开 |
-| — | `-NoDocker` | 关 | Windows 专属：不用 Docker，本机 Java 25+ 直跑 |
+| — | `-Docker` | 关 | Windows 专属：强制 Docker 模式，Docker 不可用时报错退出（不悄悄降级，保证环境可比） |
+| — | `-NoDocker` | 关 | Windows 专属：不用 Docker，本机 Java 25+ 直跑；两个开关都不加 = 自动（有 Docker 用 Docker） |
 | — | `-StopServer` | — | Windows 专属：只停服，不测试 |
 
 测试参数（直接跟在命令后，透传给 `capacity_test.py`）：

@@ -21,7 +21,8 @@
 选项:
   -Dir C:\path   服务器数据目录(默认 %USERPROFILE%\purpur-test)
   -CpuSet 0-7    绑核(保证测试间可比,别改来改去)
-  -NoDocker      本机 Java 直跑(Docker 不可用时也会自动切到此模式)
+  -Docker        强制 Docker 模式:Docker 不可用时直接报错,不悄悄降级(保证环境可比)
+  -NoDocker      本机 Java 直跑(不加任何开关时:有 Docker 用 Docker,没有自动切直跑)
   -Background    测试进程后台运行(长测试防终端断开)
   -StopServer    只停服,不测试
 #>
@@ -29,6 +30,7 @@
 param(
   [string]$Dir = (Join-Path $env:USERPROFILE 'purpur-test'),
   [string]$CpuSet = '0-7',
+  [switch]$Docker,
   [switch]$NoDocker,
   [switch]$Background,
   [switch]$StopServer,
@@ -118,11 +120,17 @@ if ($StopServer) {
 }
 
 # ---- 选择运行模式 ----
+if ($Docker -and $NoDocker) { Write-Host '-Docker 与 -NoDocker 不能同时指定'; exit 1 }
 $UseDocker = -not $NoDocker
 if ($UseDocker -and -not (Test-Docker)) {
+  if ($Docker) {
+    Write-Host 'Docker 不可用(未安装或 Docker Desktop 未启动),而 -Docker 要求必须用 Docker,退出'
+    exit 1
+  }
   Write-Host '[!] Docker 不可用(未安装或 Docker Desktop 未启动),改用本机 Java 直跑'
   $UseDocker = $false
 }
+Write-Host ("运行模式: {0}" -f $(if ($UseDocker) { 'Docker 容器' } else { '本机 Java 直跑' })) -ForegroundColor Yellow
 if (-not $UseDocker) {
   $major = $null
   if (Get-Command java -ErrorAction SilentlyContinue) {
