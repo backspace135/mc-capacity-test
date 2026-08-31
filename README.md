@@ -29,16 +29,16 @@
 unzip mc-capacity-test-v1.zip && cd mc-capacity-test
 chmod +x run_capacity_test.sh
 
-# 1) 先跑个 5 分钟冒烟,确认全链路通
+# 1) 先跑个 2 分钟冒烟,确认全链路通
 ./run_capacity_test.sh --step 300 --max-levels 2 --warmup 10 --measure 30 --interval 5
 
-# 2) 半小时粗测,大致摸到量级
-./run_capacity_test.sh --step 1000 --warmup 30 --measure 60
-
-# 3) 正式测试(默认参数:僵尸,500只/级,每级预热3分钟+测量5分钟,直到 P95≥50ms)
-#    可能跑数小时,建议 NOHUP=1 放后台,防终端断开杀掉测试
+# 2) 正式测试(默认参数:僵尸,初始步长1000,回归预测自适应跳级,
+#    每级预热≤60s+测量60s,直到 P95≥50ms;通常 4 级、约 10 分钟收敛)
 NOHUP=1 ./run_capacity_test.sh
 # 之后按屏幕提示 tail -f results/run-*.log 看进度
+
+# 3) 长窗口精测(每级预热≤2分钟+测量5分钟,复现旧版慢速方法时用)
+NOHUP=1 ./run_capacity_test.sh --warmup 120 --measure 300 --interval 10
 ```
 
 第一次运行会下载 jar（~64MB）和 Docker 镜像，多花一两分钟；之后复用，几秒就绪。
@@ -58,11 +58,11 @@ NOHUP=1 ./run_capacity_test.sh
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `--preset` | `zombie` | 负载类型：`zombie`（AI+寻路+碰撞，最接近真实生物负载）/ `armor_stand`（纯实体 tick）/ `item`（掉落物） |
-| `--step` | `500` | 每级新增实体数 |
+| `--step` | `1000` | 初始步长/最小前进量；之后按回归预测的拐点自适应跳级 |
 | `--max-levels` | `40` | 最多加多少级 |
-| `--warmup` | `180` | 每级预热秒数（数据丢弃，让 JIT/寻路稳定） |
-| `--measure` | `300` | 每级测量秒数 |
-| `--interval` | `10` | 采样间隔秒 |
+| `--warmup` | `60` | 每级最大预热秒数（P95 连续 3 样本稳定即提前结束，至少 15s） |
+| `--measure` | `60` | 每级测量秒数 |
+| `--interval` | `5` | 采样间隔秒 |
 | `--threshold` | `50` | P95 MSPT 阈值（ms），50 = 开始掉 tick |
 | `--keep-entities` | 关 | 测完不清理实体（想连服观察时用） |
 
@@ -74,17 +74,21 @@ NOHUP=1 ./run_capacity_test.sh
 
 ```
    count      P50      P95    TPS
-     500      2.1      3.2   20.0
-    1000      4.8      6.5   20.0
-    ...
-    5500     46.2     53.8   19.2
-容量拐点(P95=50.0ms 插值): 约 5320 个 zombie
+    1000     12.6     14.6   20.0
+    2000     25.0     27.5   20.0
+    3300     41.2     44.8   20.0
+    3850     55.1     58.2   18.1
+容量拐点(P95=50.0ms,回归,4 级 R²=0.9998): 约 3660 ± 30 个 zombie
+  交叉校验(相邻两点插值): 3655(偏差 0.1%)
 ```
+
+拐点由全部有效级的最小二乘回归求出（P95–实体数实测高度线性），
+`±` 为最大残差换算的实体数；R²<0.98 时回退相邻两点插值并标注低可信。
 
 CSV 落在 `./results/`：
 
-- `summary-*.csv`：每级一行（实体数、P50/P95 中位数、TPS、steal%）——画负载–MSPT 曲线用它。
-- `samples-*.csv`：每 10 秒一行的原始采样——排查抖动、对齐 GC 日志（`$DIR/gc.log`）用它。
+- `summary-*.csv`：每级一行（实体数、P50/P95 中位数、TPS、steal%、valid）——画负载–MSPT 曲线用它；`valid=0` 的级因实体损耗失真，未参与拟合。
+- `samples-*.csv`：每 5 秒一行的原始采样——排查抖动、对齐 GC 日志（`$DIR/gc.log`）用它。
 
 判读要点：
 

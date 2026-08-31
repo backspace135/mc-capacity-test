@@ -5,9 +5,9 @@
 # 用法:
 #   ./run_capacity_test.sh [capacity_test.py 的参数...]
 # 例:
-#   ./run_capacity_test.sh                                      # 完整测试(僵尸,数小时)
-#   ./run_capacity_test.sh --preset armor_stand --step 1000
-#   ./run_capacity_test.sh --step 300 --warmup 20 --measure 60  # 快速粗测
+#   ./run_capacity_test.sh                                       # 完整测试(僵尸,自适应步长,约 10 分钟)
+#   ./run_capacity_test.sh --preset armor_stand --step 2000
+#   ./run_capacity_test.sh --warmup 120 --measure 300 --interval 10  # 长窗口精测
 # 环境变量:
 #   DIR=/opt/purpur-test  服务器数据目录
 #   CPUSET=0-7            容器绑核(保证测试间可比)
