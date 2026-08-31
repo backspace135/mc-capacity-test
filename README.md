@@ -1,0 +1,119 @@
+# Minecraft 服务器容量压测工具包 · 使用教程
+
+一句话:不测"最快能跑多少 TPS"（那个数字没意义），而是**固定 20 TPS，往服务器里一档档加负载（僵尸/盔甲架/掉落物），看加到多少时 P95 MSPT 触及 50ms（开始掉 tick）**——产出一条负载–MSPT 曲线和一个有单位、可复现、跨机器可比的容量值，比如"能扛 5200 个僵尸"。
+
+方法学原理和常见错误测法的分析见 `benchmark-methodology.md`。
+
+## 文件清单
+
+| 文件 | 作用 |
+|---|---|
+| `run_capacity_test.sh` | **一键入口**：自动部署测试服 → 执行测试 → 结果存 `./results/` |
+| `capacity_test.py` | 测试逻辑，也可单独运行（`python3 capacity_test.py -h` 看全部参数） |
+| `benchmark-methodology.md` | 压测方法设计文档 |
+| `README.md` | 本教程 |
+
+## 前置条件
+
+在**要被测的服务器上**直接运行本工具包，需要：
+
+1. Linux，`docker`（当前用户可直接使用，root 或 docker 组）、`python3`、`curl`；
+2. 空闲内存 ≥ 6GB，端口 25565/25575 未被占用。
+
+其余全自动：Purpur jar 下载、虚空世界配置、RCON（只绑 127.0.0.1，密码随机生成）、Docker 镜像拉取、容器启动都由脚本完成。**不需要预先装任何 Minecraft 服务器。**
+
+## 快速开始
+
+```bash
+# 把 zip 传到服务器并解压
+unzip mc-capacity-test-v1.zip && cd mc-capacity-test
+chmod +x run_capacity_test.sh
+
+# 1) 先跑个 5 分钟冒烟,确认全链路通
+./run_capacity_test.sh --step 300 --max-levels 2 --warmup 10 --measure 30 --interval 5
+
+# 2) 半小时粗测,大致摸到量级
+./run_capacity_test.sh --step 1000 --warmup 30 --measure 60
+
+# 3) 正式测试(默认参数:僵尸,500只/级,每级预热3分钟+测量5分钟,直到 P95≥50ms)
+#    可能跑数小时,建议 NOHUP=1 放后台,防终端断开杀掉测试
+NOHUP=1 ./run_capacity_test.sh
+# 之后按屏幕提示 tail -f results/run-*.log 看进度
+```
+
+第一次运行会下载 jar（~64MB）和 Docker 镜像，多花一两分钟；之后复用，几秒就绪。
+
+## 参数
+
+环境变量（放在命令前面）：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `DIR` | `/opt/purpur-test` | 测试服数据目录 |
+| `CPUSET` | `0-7` | 容器绑定的 CPU 核（保证测试间可比，别改来改去） |
+| `NOHUP` | `0` | `1` = 后台运行，长测试必开 |
+
+测试参数（直接跟在命令后，透传给 `capacity_test.py`）：
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--preset` | `zombie` | 负载类型：`zombie`（AI+寻路+碰撞，最接近真实生物负载）/ `armor_stand`（纯实体 tick）/ `item`（掉落物） |
+| `--step` | `500` | 每级新增实体数 |
+| `--max-levels` | `40` | 最多加多少级 |
+| `--warmup` | `180` | 每级预热秒数（数据丢弃，让 JIT/寻路稳定） |
+| `--measure` | `300` | 每级测量秒数 |
+| `--interval` | `10` | 采样间隔秒 |
+| `--threshold` | `50` | P95 MSPT 阈值（ms），50 = 开始掉 tick |
+| `--keep-entities` | 关 | 测完不清理实体（想连服观察时用） |
+
+例：`./run_capacity_test.sh --preset armor_stand --step 2000`
+
+## 怎么读结果
+
+测完屏幕直接给结论，例如：
+
+```
+   count      P50      P95    TPS
+     500      2.1      3.2   20.0
+    1000      4.8      6.5   20.0
+    ...
+    5500     46.2     53.8   19.2
+容量拐点(P95=50.0ms 插值): 约 5320 个 zombie
+```
+
+CSV 落在 `./results/`：
+
+- `summary-*.csv`：每级一行（实体数、P50/P95 中位数、TPS、steal%）——画负载–MSPT 曲线用它。
+- `samples-*.csv`：每 10 秒一行的原始采样——排查抖动、对齐 GC 日志（`$DIR/gc.log`）用它。
+
+判读要点：
+
+- **P95 < 50ms 且 TPS = 20** → 这个负载量扛得住。
+- **拐点值才是结论**（"约 5320 个僵尸"），中间某级的 MSPT 数值只是过程量。
+- **steal% 一列 > 2% 的级作废重测**——那是云宿主机邻居在抢 CPU，不是你服务器的问题（脚本会当场警告）。
+
+## 让结果科学的三条纪律
+
+1. **同一配置重复 3 次，取拐点中位数**。单次结果不构成结论。
+2. **对比实验（换 GC、换机器、换配置）用 ABAB 交替顺序跑**，别 AAA 然后 BBB——环境随时间漂移会污染串行对比。
+3. **报告绝对量（ms/tick、实体数），别报 TPS 倍数**。空载时 TPS 是倒数指标，会把 0.3ms 的噪声放大成"8 倍差异"。
+
+## 常见问题
+
+**RCON 90 秒未就绪** — 服务器首次启动生成世界较慢，或内存不足。看日志：`docker logs purpur-test`。
+
+**RCON 密码在哪** — 首次部署时随机生成，写在 `$DIR/server.properties` 的 `rcon.password=`，只绑 127.0.0.1 不对外。`capacity_test.py` 会自动读取，无需手填。
+
+**提示 "spark 不可用,改用 /tick query"** — 正常。此 Purpur build 没带 spark，回退方案精度 0.1ms，在 50ms 拐点附近完全够用。
+
+**僵尸加了很多但 MSPT 不涨** — 大概率 entity-activation-range 没生效（无玩家在线时 AI 被跳过）。脚本部署时会写好 `spigot.yml`（全 0），但如果数据目录里已有旧的 `spigot.yml`，脚本不会覆盖——手动检查 `$DIR/spigot.yml` 里 `entity-activation-range` 是否全为 0，改完 `docker restart purpur-test`。
+
+**想对比多台服务器** — 把本工具包复制到每台机器各自运行，参数保持一致，比较各自的拐点值即可。
+
+**测完想停服 / 彻底删除** —
+```bash
+docker stop purpur-test                                  # 停服(保留数据,下次秒起)
+docker rm -f purpur-test && sudo rm -rf /opt/purpur-test # 彻底删除
+```
+
+**中途想终止测试** — Ctrl+C（前台）或 `pkill -f capacity_test.py`（后台），之后可再跑一次冒烟参数让脚本自动清场，或进服执行 `kill @e[type=zombie]`。
