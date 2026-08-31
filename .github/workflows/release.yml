@@ -1,0 +1,34 @@
+name: Release
+
+# 推送 v* 标签即自动打包并发布 Release,附带 zip 与 tar.gz;
+# 若 Release 已存在(如从 GitHub UI 创建),则只补传资产。
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build bundles
+        run: |
+          mkdir -p dist/mc-capacity-test
+          cp capacity_test.py run_capacity_test.sh benchmark-methodology.md README.md dist/mc-capacity-test/
+          chmod +x dist/mc-capacity-test/run_capacity_test.sh
+          cd dist
+          zip -r "mc-capacity-test-${GITHUB_REF_NAME}.zip" mc-capacity-test
+          tar czf "mc-capacity-test-${GITHUB_REF_NAME}.tar.gz" mc-capacity-test
+
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes \
+            dist/mc-capacity-test-*.zip dist/mc-capacity-test-*.tar.gz \
+          || gh release upload "$GITHUB_REF_NAME" --clobber \
+            dist/mc-capacity-test-*.zip dist/mc-capacity-test-*.tar.gz

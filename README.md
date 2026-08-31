@@ -25,8 +25,8 @@
 ## 快速开始
 
 ```bash
-# 把 zip 传到服务器并解压
-unzip mc-capacity-test-v1.zip && cd mc-capacity-test
+# 从 GitHub Releases 下载 zip(每个 v* 标签由 CI 自动打包发布),传到服务器并解压
+unzip mc-capacity-test-*.zip && cd mc-capacity-test
 chmod +x run_capacity_test.sh
 
 # 1) 先跑个 2 分钟冒烟,确认全链路通
