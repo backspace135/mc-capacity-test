@@ -19,8 +19,9 @@ jobs:
         run: |
           mkdir -p dist/mc-capacity-test
           cp capacity_test.py benchmark-methodology.md README.md dist/mc-capacity-test/
-          cp -r Linux Windows dist/mc-capacity-test/
+          cp -r Linux Windows macOS dist/mc-capacity-test/
           chmod +x dist/mc-capacity-test/Linux/run_capacity_test.sh
+          chmod +x dist/mc-capacity-test/macOS/run_capacity_test.sh dist/mc-capacity-test/macOS/*.command
           cd dist
           zip -r "mc-capacity-test-${GITHUB_REF_NAME}.zip" mc-capacity-test
           tar czf "mc-capacity-test-${GITHUB_REF_NAME}.tar.gz" mc-capacity-test
