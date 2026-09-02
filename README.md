@@ -18,6 +18,7 @@
 | `capacity_test.py` | 测试逻辑（两平台共用），也可单独运行（`python3 capacity_test.py -h` 看全部参数） |
 | `benchmark-methodology.md` | 压测方法设计文档 |
 | `README.md` | 本教程 |
+| `LICENSE` | MIT 许可证 |
 
 ## 前置条件
 
@@ -196,3 +197,9 @@ docker rm -f purpur-test; Remove-Item -Recurse -Force "$env:USERPROFILE\purpur-t
 **直跑模式（`--no-docker` / `-NoDocker`）的注意点** — RCON(25575)监听所有网卡（Minecraft 无法单独给 RCON 绑地址），密码随机生成；机器有公网 IP 的话请在防火墙拦掉 25575。Linux 直跑默认数据目录改为 `~/purpur-test`（免 root），macOS 两种模式都用 `~/purpur-test`。Windows/macOS 首次启动 Java 时防火墙弹窗属正常，家用机可拒绝（测试全程走本机回环）。
 
 **中途想终止测试** — Ctrl+C（前台）或 `pkill -f capacity_test.py`（Linux/macOS 后台），之后可再跑一次冒烟参数让脚本自动清场，或进服执行 `kill @e[type=zombie]`。
+
+## 许可证
+
+[MIT](LICENSE)。随便用、改、商用、闭源分发，保留版权声明即可，作者不承担任何担保责任。
+
+注意：本工具包会自动下载 [Purpur](https://purpurmc.org/) 服务端（其自身按 MIT 分发，但运行时会拉取并打补丁到 Mojang 的官方服务端 jar，后者受 [Minecraft EULA](https://www.minecraft.net/eula) 约束）。MIT 只覆盖本仓库自己的代码。
