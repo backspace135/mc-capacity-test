@@ -200,6 +200,6 @@ docker rm -f purpur-test; Remove-Item -Recurse -Force "$env:USERPROFILE\purpur-t
 
 ## 许可证
 
-[MIT](LICENSE)。随便用、改、商用、闭源分发，保留版权声明即可，作者不承担任何担保责任。
+本项目基于 [MIT 许可证](LICENSE)发布。您可自由使用、复制、修改、合并、发布、分发、再许可及销售本软件的副本，包括用于商业用途；唯一要求是在软件的所有副本或实质性部分中保留上述版权声明与许可声明。本软件按"原样"提供，不附带任何明示或默示的担保，作者与版权持有人不对因使用本软件而产生的任何索赔、损害或其他责任负责。
 
-注意：本工具包会自动下载 [Purpur](https://purpurmc.org/) 服务端（其自身按 MIT 分发，但运行时会拉取并打补丁到 Mojang 的官方服务端 jar，后者受 [Minecraft EULA](https://www.minecraft.net/eula) 约束）。MIT 只覆盖本仓库自己的代码。
+许可范围仅限本仓库自有代码。本工具在运行时会自动下载 [Purpur](https://purpurmc.org/) 服务端（Purpur 自身以 MIT 分发，但其启动过程会获取并修补 Mojang 官方服务端 jar），该部分受 [Minecraft 最终用户许可协议](https://www.minecraft.net/eula)约束，不在本许可证覆盖范围内，使用者需自行遵守。
