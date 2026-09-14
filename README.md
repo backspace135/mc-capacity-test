@@ -4,18 +4,26 @@
 
 方法学原理和常见错误测法的分析见 `benchmark-methodology.md`。
 
-## 文件清单
-
+# 文件清单
 | 文件 | 作用 |
 |---|---|
 | `Linux/run_capacity_test.sh` | **一键入口（Linux）**：自动部署测试服 → 执行测试 → 结果存 `./results/` |
 | `macOS/一键压测.command` | **一键入口（macOS）**：双击即完整测试，开头选运行方式 |
 | `macOS/停服.command` | 双击停掉测试服（容器或直跑进程） |
-| `macOS/run_capacity_test.sh` | macOS 实际逻辑（.command 只是包装）；命令行用户可直接带参数调用 |
-| `Windows/一键压测.bat` | **一键入口（Windows）**：双击即完整测试，进度全程显示在窗口里 |
-| `Windows/停服.bat` | 双击停掉测试服（容器或直跑进程） |
-| `Windows/run_capacity_test.ps1` | Windows 实际逻辑（bat 只是包装）；PowerShell 用户可直接带参数调用 |
-| `capacity_test.py` | 测试逻辑（两平台共用），也可单独运行（`python3 capacity_test.py -h` 看全部参数） |
+| `macOS/run_capacity_test.sh` | macOS 实际逻辑 |
+| `Windows/一键压测.bat` | **一键入口（Windows）** |
+| `Windows/停服.bat` | 双击停掉测试服 |
+| `Windows/run_capacity_test.ps1` | Windows 实际逻辑 |
+| `capacity_test.py` | 阶段 1 兼容入口；保留原有参数和 ping/stop 行为 |
+| `phase1_capacity.py` | 阶段 1：负载梯度容量测试 |
+| `phase2_soak.py` | 阶段 2：稳定性 soak 测试 |
+| `phase3_sprint.py` | 阶段 3：ABAB sprint 专项实验 |
+| `phase4_stats.py` | 阶段 4：统计汇总、IQR/CV 和 ABAB 判定 |
+| `rcon_client.py` | 共享 RCON 客户端 |
+| `benchmark_metrics.py` | 共享 MSPT、steal、回归和预热采样 |
+| `phase5_batch_spawn.py` | 阶段 5：批量实体生成评估与优化 |
+| `player_capacity.py` | 可选：真实玩家模拟容量测试 |
+| `world_loads.py` | 可选：红石、漏斗和区块探索负载 |
 | `benchmark-methodology.md` | 压测方法设计文档 |
 | `README.md` | 本教程 |
 | `LICENSE` | MIT 许可证 |
@@ -121,8 +129,41 @@ macOS 与另两版的差别只有两处：**直跑模式不绑核**（macOS 没�
 | `--warmup` | `60` | 每级最大预热秒数（P95 连续 3 样本稳定即提前结束，至少 15s） |
 | `--measure` | `60` | 每级测量秒数 |
 | `--interval` | `5` | 采样间隔秒 |
+
 | `--threshold` | `50` | P95 MSPT 阈值（ms），50 = 开始掉 tick |
 | `--keep-entities` | 关 | 测完不清理实体（想连服观察时用） |
+## 阶段 2–4 独立运行
+
+阶段 1 仍通过原有入口运行；拆分后的阶段可直接调用：
+
+```bash
+# 阶段 2：以阶段 1 最新有效负载的 80% soak 1 小时，每分钟采样
+python3 phase2_soak.py --capacity-percent 80 --duration 3600 --interval 60
+
+# 阶段 3：ABAB 固定 100k tick sprint，默认每组 5 次
+python3 phase3_sprint.py --help
+
+# 阶段 4：汇总阶段 3 的 CSV/JSON，输出中位数、IQR、CV 和判定
+python3 phase4_stats.py results/sprint.csv
+```
+
+阶段 2/3 需要真实 RCON 和运行中的测试服；阶段 4 为离线统计，不连接服务器。
+## 阶段 5 与可选负载
+
+```bash
+# 阶段 5：比较逐条 summon、分批和真实 datapack function 策略
+python3 phase5_batch_spawn.py --help
+
+# 真实玩家：必须提供外部客户端 JSONL 命令适配器，不提供 fake fallback
+python3 player_capacity.py --adapter-command 'node player-client.js --jsonl {player_id}' --help
+
+# 红石/漏斗/区块探索：world-changing workload 必须显式授权
+python3 world_loads.py redstone --count 32 --help
+python3 world_loads.py hopper --count 64 --help
+python3 world_loads.py exploration --count 16 --help
+```
+
+玩家模拟依赖外部客户端适配器；红石、漏斗负载默认拒绝修改世界，运行 API 时必须显式传入授权。
 
 例：`./Linux/run_capacity_test.sh --preset armor_stand --step 2000` / `./macOS/run_capacity_test.sh --preset armor_stand --step 2000` / `.\Windows\run_capacity_test.ps1 --preset armor_stand --step 2000`
 
