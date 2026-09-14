@@ -9,11 +9,11 @@
 | 文件 | 作用 |
 |---|---|
 | `Linux/run_capacity_test.sh` | **Linux 入口**：自动部署测试服，执行测试，结果写入 `./results/` |
-| `macOS/一键压测.command` | **macOS 入口**：双击运行完整测试，启动时选择运行方式 |
-| `macOS/停服.command` | 双击停止测试服（容器或直跑进程） |
+| `macOS/容量测试.command` | **macOS 入口**：双击运行完整测试，启动时选择运行方式 |
+| `macOS/停止服务器.command` | 双击停止测试服（容器或直跑进程） |
 | `macOS/run_capacity_test.sh` | macOS 实际执行逻辑 |
-| `Windows/一键压测.bat` | **Windows 入口**：双击运行完整测试 |
-| `Windows/停服.bat` | 双击停止测试服 |
+| `Windows/容量测试.bat` | **Windows 入口**：双击运行完整测试 |
+| `Windows/停止服务器.bat` | 双击停止测试服 |
 | `Windows/run_capacity_test.ps1` | Windows 实际执行逻辑 |
 | `python/` | 全部 Python 测试脚本与共享模块 |
 | `python/capacity_test.py` | 平台入口脚本调用的默认命令行程序；包含 `--ping` / `--stop` 服务器管理开关 |
@@ -45,7 +45,7 @@
 
 ### Windows
 
-解压后双击 `Windows\一键压测.bat`，测试结束后双击 `Windows\停服.bat`。启动时选择运行方式（1 自动 / 2 强制 Docker / 3 不使用 Docker，直接回车即自动），随后窗口依次显示 `[1/4] 准备`（含 jar 下载进度）、`[2/4] 启动服务器`、`[3/4] 等待 RCON`、`[4/4] 逐级加载测试`，最后输出结论。如需调整参数，在工具包根目录使用 PowerShell：
+解压后双击 `Windows\容量测试.bat`，测试结束后双击 `Windows\停止服务器.bat`。启动时选择运行方式（1 自动 / 2 强制 Docker / 3 不使用 Docker，直接回车即自动），随后窗口依次显示 `[1/4] 准备`（含 jar 下载进度）、`[2/4] 启动服务器`、`[3/4] 等待 RCON`、`[4/4] 逐级加载测试`，最后输出结论。如需调整参数，在工具包根目录使用 PowerShell：
 
 ```powershell
 # 冒烟测试(约 2 分钟,确认全链路可用)
@@ -90,7 +90,7 @@ NOHUP=1 ./Linux/run_capacity_test.sh --warmup 120 --measure 300 --interval 10
 
 ### macOS
 
-解压后双击 `macOS/一键压测.command`，测试结束后双击 `macOS/停服.command`。与 Windows 相同，启动时选择运行方式（1 自动 / 2 强制 Docker / 3 不使用 Docker，直接回车即自动）。如需调整参数，在工具包根目录使用终端：
+解压后双击 `macOS/容量测试.command`，测试结束后双击 `macOS/停止服务器.command`。与 Windows 相同，启动时选择运行方式（1 自动 / 2 强制 Docker / 3 不使用 Docker，直接回车即自动）。如需调整参数，在工具包根目录使用终端：
 
 ```bash
 chmod +x macOS/run_capacity_test.sh macOS/*.command   # zip 解压后若丢失执行权限
@@ -209,7 +209,7 @@ CSV 文件写入 `./results/`：
 
 **提示 "spark 不可用,改用 /tick query"** — 属正常情况。当前 Purpur build 未内置 spark，回退方案精度为 0.1ms，在 50ms 拐点附近足够使用。
 
-**僵尸数量增加但 MSPT 不上升** — 通常是 entity-activation-range 未生效（无玩家在线时 AI 被跳过）。脚本部署时会写入 `spigot.yml`（全部为 0），但若数据目录中已存在旧的 `spigot.yml`，脚本不会覆盖。请检查 `$DIR/spigot.yml` 中 `entity-activation-range` 是否全部为 0，修改后执行 `docker restart purpur-test`（直跑模式：先停服，Linux/macOS 使用 `--stop-server`，Windows 双击 `停服.bat`，再重新运行脚本）。
+**僵尸数量增加但 MSPT 不上升** — 通常是 entity-activation-range 未生效（无玩家在线时 AI 被跳过）。脚本部署时会写入 `spigot.yml`（全部为 0），但若数据目录中已存在旧的 `spigot.yml`，脚本不会覆盖。请检查 `$DIR/spigot.yml` 中 `entity-activation-range` 是否全部为 0，修改后执行 `docker restart purpur-test`（直跑模式：先停服，Linux/macOS 使用 `--stop-server`，Windows 双击 `停止服务器.bat`，再重新运行脚本）。
 
 **macOS 双击 .command 提示"无法打开，因为无法验证开发者"** — 这是 Gatekeeper 隔离标记，从网络下载的 zip 解压后均会带有。右键点击文件 → 打开 → 再次点击"打开"即可；或在终端执行 `xattr -dr com.apple.quarantine macOS/`。若提示权限不足，则是 zip 丢失了执行位：`chmod +x macOS/run_capacity_test.sh macOS/*.command`。
 
@@ -226,12 +226,12 @@ rm -rf ~/purpur-test                                     # 彻底删除(直跑�
 ```
 ```bash
 # macOS
-./macOS/run_capacity_test.sh --stop-server               # 停止服务器(等价于双击 停服.command)
+./macOS/run_capacity_test.sh --stop-server               # 停止服务器(等价于双击 停止服务器.command)
 docker rm -f purpur-test; rm -rf ~/purpur-test           # 彻底删除(两种模式共用同一目录)
 ```
 ```powershell
 # Windows
-.\Windows\run_capacity_test.ps1 -StopServer              # 停止服务器(容器或直跑进程均可;等价于双击 停服.bat)
+.\Windows\run_capacity_test.ps1 -StopServer              # 停止服务器(容器或直跑进程均可;等价于双击 停止服务器.bat)
 docker rm -f purpur-test; Remove-Item -Recurse -Force "$env:USERPROFILE\purpur-test"  # 彻底删除
 ```
 

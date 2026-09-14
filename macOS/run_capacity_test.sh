@@ -6,7 +6,7 @@
 #   Docker 模式(默认): 需要 Docker Desktop/OrbStack/colima,支持绑核与内存限制,RCON 只绑 127.0.0.1
 #   直跑模式(--no-docker): 不需要 Docker,用本机 Java 25+ 直接启动 Purpur
 #
-# 不熟悉命令行?直接双击同目录的「一键压测.command」即可;测完双击「停服.command」关服。
+# 不熟悉命令行时,可直接双击同目录的「容量测试.command」;测试结束后双击「停止服务器.command」停止服务器。
 #
 # 用法(在工具包根目录下):
 #   ./macOS/run_capacity_test.sh [选项] [capacity_test.py 的参数...]

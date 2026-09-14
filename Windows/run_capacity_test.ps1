@@ -7,7 +7,7 @@
   Docker 模式(默认): 需要 Docker Desktop(Linux 容器模式),与 Linux 版行为一致,支持绑核
   直跑模式(-NoDocker): 不需要 Docker,用本机 Java 25+ 直接启动 Purpur,绑核转为 CPU 亲和性
 
-不熟悉命令行?直接双击同目录的「一键压测.bat」即可;测完双击「停服.bat」关服。
+不熟悉命令行时,可直接双击同目录的「容量测试.bat」;测试结束后双击「停止服务器.bat」停止服务器。
 
 用法(PowerShell,在工具包根目录下):
   .\Windows\run_capacity_test.ps1 [选项] [capacity_test.py 的参数...]
@@ -319,5 +319,5 @@ if ($code -eq 0) {
 } else {
   Write-Host '[压测未正常完成,请看上方提示]' -ForegroundColor Red
 }
-Write-Host '停服: 双击 Windows\停服.bat,或 .\Windows\run_capacity_test.ps1 -StopServer' -ForegroundColor Cyan
+Write-Host '停服: 双击 Windows\停止服务器.bat,或 .\Windows\run_capacity_test.ps1 -StopServer' -ForegroundColor Cyan
 exit $code
