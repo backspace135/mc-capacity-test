@@ -1,4 +1,4 @@
-"""Phase 3: ABAB fixed-length tick-sprint experiment.
+"""ABAB fixed-length tick-sprint experiment.
 
 The server lifecycle is deliberately injected: this module does not assume Docker,
 Java, or a particular process manager.  ``RconSprintController`` supplies the

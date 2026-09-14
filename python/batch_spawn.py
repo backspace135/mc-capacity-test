@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 5: compare entity generation round trips and real datapack functions.
+"""Batch entity spawning benchmark: compare summon round trips and real datapack functions.
 
 ``summon`` sends each command separately; ``chunked`` groups the same commands
 with an optional inter-batch pause (it does NOT claim fewer RCON round trips).
@@ -24,7 +24,7 @@ import time
 import uuid
 from dataclasses import dataclass
 
-from phase1_capacity import PRESETS
+from capacity_gradient import PRESETS
 from rcon_client import Rcon, strip_colors
 
 STRATEGIES = ("summon", "chunked", "function")
@@ -73,7 +73,7 @@ class BatchSpawnConfig:
                 raise ValueError("function strategy requires datapack_dir and a positive server-specific pack_format")
             if not Path(self.datapack_dir).is_dir():
                 raise ValueError("datapack_dir must be an existing server world's datapacks directory")
-        build_summon_commands(self, "phase5_validation", count=1)
+        build_summon_commands(self, "batch_spawn_validation", count=1)
 
 
 def batch_commands(commands, batch_size):
@@ -157,7 +157,7 @@ def run_batch_spawn(rc, config, *, clock=time.perf_counter, sleep=time.sleep):
     run_id = uuid.uuid4().hex
     for strategy in config.strategies:
         for repeat in range(1, config.repeats + 1):
-            tag = f"phase5_{run_id}_{strategy}_{repeat}"
+            tag = f"batch_spawn_{run_id}_{strategy}_{repeat}"
             commands = build_summon_commands(config, tag)
             groups = batch_commands(commands, 1 if strategy == "summon" else config.batch_size)
             row = dict(strategy=strategy, repeat=repeat, tag=tag, preset=config.preset,
@@ -195,7 +195,7 @@ def run_batch_spawn(rc, config, *, clock=time.perf_counter, sleep=time.sleep):
                     candidate.mkdir()
                     pack = candidate
                     (pack / "pack.mcmeta").write_text(json.dumps({"pack": {
-                        "pack_format": config.pack_format, "description": "Temporary Phase 5 benchmark"
+                        "pack_format": config.pack_format, "description": "Temporary batch-spawn benchmark"
                     }}), encoding="utf-8")
                     directory = pack / "data" / tag / config.function_directory
                     directory.mkdir(parents=True)
@@ -264,8 +264,8 @@ def write_results(records, outdir):
     """Write deterministic field order and JSON nulls for unobservable counts."""
     directory = Path(outdir)
     directory.mkdir(parents=True, exist_ok=True)
-    csv_path = directory / "phase5_batch_spawn.csv"
-    json_path = directory / "phase5_batch_spawn.json"
+    csv_path = directory / "batch_spawn.csv"
+    json_path = directory / "batch_spawn.json"
     if records:
         with csv_path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(records[0]))
@@ -299,7 +299,7 @@ def main(argv=None):
     parser.add_argument("--datapack-dir", help="existing server world/datapacks directory; required by function strategy")
     parser.add_argument("--pack-format", type=int, help="datapack format for the target server; required by function strategy")
     parser.add_argument("--function-directory", choices=("function", "functions"), default="function", help="function for 1.21+; functions for older versions")
-    parser.add_argument("--outdir", default="results/phase5")
+    parser.add_argument("--outdir", default="results/batch_spawn")
     args = parser.parse_args(argv)
     config = BatchSpawnConfig(**{name: getattr(args, name) for name in BatchSpawnConfig.__dataclass_fields__})
     try:

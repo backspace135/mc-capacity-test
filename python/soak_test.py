@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 2 long-stability soak at a fixed entity count.
+"""Long-duration stability soak at a fixed entity count.
 
 Samples MSPT/TPS and host CPU steal through the same RCON and metric
 primitives as :mod:`capacity_test`, writing a durable CSV for methodology
@@ -14,13 +14,13 @@ import statistics
 import time
 from datetime import datetime
 
-from phase1_capacity import PRESETS, spawn
+from capacity_gradient import PRESETS, spawn
 from benchmark_metrics import count_entities, read_cpu_steal, sample_mspt
 from rcon_client import Rcon
 
 
 def latest_capacity_estimate(results_dir, explicit=None):
-    """Return the latest numeric capacity estimate from a phase-1 summary.
+    """Return the latest numeric capacity estimate from a capacity-gradient summary.
 
     ``explicit`` may be a CSV path or a numeric value.  Summary rows are
     considered only when valid and the largest observed count is selected.
@@ -121,7 +121,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--count", type=int, help="fixed entity count (overrides percentage)")
     ap.add_argument("--capacity-percent", type=float, default=80.0, help="percentage of latest capacity estimate (default 80)")
-    ap.add_argument("--capacity-estimate", help="numeric estimate or phase-1 summary CSV")
+    ap.add_argument("--capacity-estimate", help="numeric estimate or capacity-gradient summary CSV")
     ap.add_argument("--duration", type=float, default=3600, help="soak duration seconds (default 3600)")
     ap.add_argument("--interval", type=float, default=60, help="sample interval seconds (default 60)")
     ap.add_argument("--preset", choices=PRESETS, default="zombie")

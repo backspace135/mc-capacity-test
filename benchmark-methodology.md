@@ -50,7 +50,7 @@ P95 MSPT 触及 50ms**」。产出是一条 **负载–MSPT 容量曲线** 和�
 Paper 系通常内置 spark；实测所用 Purpur 26.2 build 无 spark 命令，
 脚本自动退回 `/tick query`（0.1ms 精度，在 50ms 拐点附近足够用）。
 
-### 阶段 0：环境固化（一次性）
+### 环境固化（一次性）
 1. 固定并记录：Purpur build 号、JVM 版本、Aikar flags、`-Xms=-Xmx`（如 4G）、
    `server.properties`、view-distance/simulation-distance；
 2. Docker 绑核：`--cpuset-cpus` 固定分配（如 0-7），排除调度漂移；
@@ -58,7 +58,7 @@ Paper 系通常内置 spark；实测所用 Purpur 26.2 build 无 spark 命令，
    两台机器必须一致；
 4. 开 GC 日志。
 
-### 阶段 1：负载梯度容量测试（主体）
+### 负载梯度容量测试（主体）
 用**可精确复制的合成负载**，按梯度递增：
 
 | 负载类型 | 施加方式 | 模拟的真实负载 |
@@ -108,12 +108,12 @@ Paper 系通常内置 spark；实测所用 Purpur 26.2 build 无 spark 命令，
 2. summon NBT 加 `Invulnerable:1b`（免疫一切伤害，不改变 AI/寻路开销）。
 每级测量期间实体数应保持恒定；若 P95 随时间单调下降，先查实体数再看性能。
 
-### 阶段 2：稳定性 soak 测试
+### 稳定性 soak 测试
 取拐点约 50% 的负载（P95 ≈ 25ms），连续运行 1–2 小时，
 每分钟采样。观察 MSPT 是否随时间漂移，并与 GC 日志、steal%
 时间线对齐——漂移与 GC 相关 → JVM 问题；与 steal 相关 → 宿主机问题。
 
-### 阶段 3：解释旧测试的"退化之谜"（专项实验）
+### ABAB 交替 sprint 实验（解释退化现象）
 ABAB 交替设计，每组 5 次 100k-tick sprint，全程记录 steal% 与 GC：
 - A 组：每次 sprint 前重启容器；
 - B 组：连续 sprint 不重启。

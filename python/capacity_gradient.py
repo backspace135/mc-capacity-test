@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone Phase 1 Minecraft capacity-gradient runner."""
+"""Minecraft capacity-gradient runner: step up synthetic entity load until P95 MSPT reaches the threshold."""
 import argparse
 import csv
 import os
@@ -92,7 +92,7 @@ def spawn(rc, preset, n):
         if (i+1)%200==0: print(f"    已生成 {i+1}/{n}")
 
 def run_capacity(args, rc):
-    """Run Phase 1 against an already-connected RCON client; return output paths/results."""
+    """Run the capacity gradient against an already-connected RCON client; return output paths/results."""
     outdir=args.outdir or os.path.join(args.server_dir,"results"); os.makedirs(outdir,exist_ok=True)
     ts=datetime.now().strftime("%Y%m%d-%H%M%S"); samples_path=os.path.join(outdir,f"samples-{ts}.csv"); summary_path=os.path.join(outdir,f"summary-{ts}.csv")
     p=PRESETS[args.preset]; results=[]; valid_pts=[]; state={"spark":True}; prev_cpu=read_cpu_steal(); target=args.step; stopped="达到最大级数"

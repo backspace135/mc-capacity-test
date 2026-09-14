@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Backward-compatible entry point for the Minecraft benchmark phases.
+"""Default command-line entry point used by the platform launchers.
 
-Phase 1 remains the default CLI used by the platform launchers.  The other
-methodology phases have dedicated modules: ``phase2_soak.py``,
-``phase3_sprint.py``, and ``phase4_stats.py``.
+Runs the capacity-gradient test from ``capacity_gradient.py`` and keeps the
+``--ping`` / ``--stop`` server-management switches.  The remaining tools have
+dedicated modules: ``soak_test.py``, ``sprint_experiment.py``,
+``sprint_stats.py`` and ``batch_spawn.py``.
 """
 import argparse
 import os
 import sys
 
-from phase1_capacity import PRESETS, SETUP_CMDS, PEN, run_capacity
-from phase1_capacity import spawn
+from capacity_gradient import PRESETS, SETUP_CMDS, PEN, run_capacity
+from capacity_gradient import spawn
 from benchmark_metrics import count_entities, linfit, read_cpu_steal, sample_mspt, warmup_stable
 from rcon_client import Rcon, strip_colors
 

@@ -1,4 +1,4 @@
-"""Deterministic statistics and reporting for Phase 3 ABAB sprint runs."""
+"""Deterministic statistics and reporting for ABAB tick-sprint runs."""
 from __future__ import annotations
 
 import argparse
@@ -76,7 +76,7 @@ def _load(path: str) -> list[dict[str, Any]]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Report Phase 3 ABAB sprint statistics")
+    parser = argparse.ArgumentParser(description="Report ABAB tick-sprint statistics")
     parser.add_argument("input", help="CSV or JSON results file")
     parser.add_argument("--value", default="ms_per_tick", help="numeric field (default: ms_per_tick)")
     args = parser.parse_args(argv)
