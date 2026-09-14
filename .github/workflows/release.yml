@@ -18,7 +18,8 @@ jobs:
       - name: Build bundles
         run: |
           mkdir -p dist/mc-capacity-test
-          cp capacity_test.py benchmark-methodology.md README.md LICENSE dist/mc-capacity-test/
+          cp VERSION benchmark-methodology.md README.md LICENSE dist/mc-capacity-test/
+          cp -r python dist/mc-capacity-test/
           cp -r Linux Windows macOS dist/mc-capacity-test/
           chmod +x dist/mc-capacity-test/Linux/run_capacity_test.sh
           chmod +x dist/mc-capacity-test/macOS/run_capacity_test.sh dist/mc-capacity-test/macOS/*.command

@@ -65,7 +65,7 @@ if [ "$STOP_SERVER" = 1 ]; then
     SRV_PID=$(head -1 "$PIDFILE")
     if kill -0 "$SRV_PID" 2>/dev/null; then
       # 先走 RCON 优雅关服,30s 不退再强杀
-      python3 capacity_test.py --server-dir "$d" --stop >/dev/null 2>&1 || true
+      python3 python/capacity_test.py --server-dir "$d" --stop >/dev/null 2>&1 || true
       for i in $(seq 1 30); do
         kill -0 "$SRV_PID" 2>/dev/null || break
         sleep 1
@@ -192,7 +192,7 @@ fi
 
 echo "== [3/4] 等待 RCON 就绪(首次启动要生成世界,稍慢)=="
 for i in $(seq 1 60); do
-  if python3 capacity_test.py --server-dir "$DIR" --ping 2>/dev/null; then
+  if python3 python/capacity_test.py --server-dir "$DIR" --ping 2>/dev/null; then
     break
   fi
   if [ "$i" = 60 ]; then
@@ -208,11 +208,11 @@ echo "== [4/4] 执行容量测试(结果在 ./results/)=="
 mkdir -p results
 if [ "${NOHUP:-0}" = "1" ]; then
   TS=$(date +%Y%m%d-%H%M%S)
-  nohup python3 -u capacity_test.py --server-dir "$DIR" --outdir ./results ${PASS[@]+"${PASS[@]}"} > "results/run-$TS.log" 2>&1 &
+  nohup python3 -u python/capacity_test.py --server-dir "$DIR" --outdir ./results ${PASS[@]+"${PASS[@]}"} > "results/run-$TS.log" 2>&1 &
   echo "已后台运行(PID $!)。看进度: tail -f results/run-$TS.log"
   exit 0
 fi
-python3 -u capacity_test.py --server-dir "$DIR" --outdir ./results ${PASS[@]+"${PASS[@]}"}
+python3 -u python/capacity_test.py --server-dir "$DIR" --outdir ./results ${PASS[@]+"${PASS[@]}"}
 
 if [ "$USE_DOCKER" = 1 ]; then
   echo "完成。停服: docker stop purpur-test(或 ./Linux/run_capacity_test.sh --stop-server)"

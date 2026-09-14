@@ -14,16 +14,17 @@
 | `Windows/一键压测.bat` | **一键入口（Windows）** |
 | `Windows/停服.bat` | 双击停掉测试服 |
 | `Windows/run_capacity_test.ps1` | Windows 实际逻辑 |
-| `capacity_test.py` | 阶段 1 兼容入口；保留原有参数和 ping/stop 行为 |
-| `phase1_capacity.py` | 阶段 1：负载梯度容量测试 |
-| `phase2_soak.py` | 阶段 2：稳定性 soak 测试 |
-| `phase3_sprint.py` | 阶段 3：ABAB sprint 专项实验 |
-| `phase4_stats.py` | 阶段 4：统计汇总、IQR/CV 和 ABAB 判定 |
-| `rcon_client.py` | 共享 RCON 客户端 |
-| `benchmark_metrics.py` | 共享 MSPT、steal、回归和预热采样 |
-| `phase5_batch_spawn.py` | 阶段 5：批量实体生成评估与优化 |
-| `player_capacity.py` | 可选：真实玩家模拟容量测试 |
-| `world_loads.py` | 可选：红石、漏斗和区块探索负载 |
+| `python/` | 全部 Python 测试脚本与共享模块 |
+| `python/capacity_test.py` | 阶段 1 兼容入口；保留原有参数和 ping/stop 行为 |
+| `python/phase1_capacity.py` | 阶段 1：负载梯度容量测试 |
+| `python/phase2_soak.py` | 阶段 2：稳定性 soak 测试 |
+| `python/phase3_sprint.py` | 阶段 3：ABAB sprint 专项实验 |
+| `python/phase4_stats.py` | 阶段 4：统计汇总、IQR/CV 和 ABAB 判定 |
+| `python/phase5_batch_spawn.py` | 阶段 5：批量实体生成评估与优化 |
+| `python/player_capacity.py` | 可选：真实玩家模拟容量测试 |
+| `python/world_loads.py` | 可选：红石、漏斗和区块探索负载 |
+| `python/rcon_client.py` | 共享 RCON 客户端 |
+| `python/benchmark_metrics.py` | 共享 MSPT、steal、回归和预热采样 |
 | `benchmark-methodology.md` | 压测方法设计文档 |
 | `README.md` | 本教程 |
 | `LICENSE` | MIT 许可证 |
@@ -138,13 +139,13 @@ macOS 与另两版的差别只有两处：**直跑模式不绑核**（macOS 没�
 
 ```bash
 # 阶段 2：以阶段 1 最新有效负载的 80% soak 1 小时，每分钟采样
-python3 phase2_soak.py --capacity-percent 80 --duration 3600 --interval 60
+python3 python/phase2_soak.py --capacity-percent 80 --duration 3600 --interval 60
 
 # 阶段 3：ABAB 固定 100k tick sprint，默认每组 5 次
-python3 phase3_sprint.py --help
+python3 python/phase3_sprint.py --help
 
 # 阶段 4：汇总阶段 3 的 CSV/JSON，输出中位数、IQR、CV 和判定
-python3 phase4_stats.py results/sprint.csv
+python3 python/phase4_stats.py results/sprint.csv
 ```
 
 阶段 2/3 需要真实 RCON 和运行中的测试服；阶段 4 为离线统计，不连接服务器。
@@ -152,15 +153,15 @@ python3 phase4_stats.py results/sprint.csv
 
 ```bash
 # 阶段 5：比较逐条 summon、分批和真实 datapack function 策略
-python3 phase5_batch_spawn.py --help
+python3 python/phase5_batch_spawn.py --help
 
 # 真实玩家：必须提供外部客户端 JSONL 命令适配器，不提供 fake fallback
-python3 player_capacity.py --adapter-command 'node player-client.js --jsonl {player_id}' --help
+python3 python/player_capacity.py --adapter-command 'node player-client.js --jsonl {player_id}' --help
 
 # 红石/漏斗/区块探索：world-changing workload 必须显式授权
-python3 world_loads.py redstone --count 32 --help
-python3 world_loads.py hopper --count 64 --help
-python3 world_loads.py exploration --count 16 --help
+python3 python/world_loads.py redstone --count 32 --help
+python3 python/world_loads.py hopper --count 64 --help
+python3 python/world_loads.py exploration --count 16 --help
 ```
 
 玩家模拟依赖外部客户端适配器；红石、漏斗负载默认拒绝修改世界，运行 API 时必须显式传入授权。

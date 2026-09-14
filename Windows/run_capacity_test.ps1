@@ -110,7 +110,7 @@ if ($StopServer) {
     $proc = Get-Process -Id $srvPid -ErrorAction SilentlyContinue
     if ($proc) {
       # 先走 RCON 优雅关服,30s 不退再强杀
-      & $PyExe @PyPre 'capacity_test.py' '--server-dir' $Dir '--stop' *> $null
+      & $PyExe @PyPre 'python/capacity_test.py' '--server-dir' $Dir '--stop' *> $null
       if (-not $proc.WaitForExit(30000)) { Stop-Process -Id $srvPid -Force }
       Write-Host "已停止直跑服务器(PID $srvPid)"
     } else {
@@ -283,7 +283,7 @@ Write-Step '[3/4] 等待 RCON 就绪(首次启动要生成世界,通常 10-40s)'
 $ready = $false
 $t0 = Get-Date
 foreach ($i in 1..60) {
-  & $PyExe @PyPre 'capacity_test.py' '--server-dir' $Dir '--ping' *> $null
+  & $PyExe @PyPre 'python/capacity_test.py' '--server-dir' $Dir '--ping' *> $null
   if ($LASTEXITCODE -eq 0) { $ready = $true; break }
   Write-Host -NoNewline ("`r  等待中 {0}s / 最多 180s " -f [int]((Get-Date) - $t0).TotalSeconds)
   Start-Sleep 3
@@ -298,7 +298,7 @@ Write-Host ("  RCON 就绪(用时 {0}s)" -f [int]((Get-Date) - $t0).TotalSeconds
 
 Write-Step '[4/4] 执行容量测试(结果在 .\results\;每级打印 预热→测量→P95/TPS,默认约 4 级 10 分钟)'
 New-Item -ItemType Directory -Force -Path 'results' | Out-Null
-$runArgs = @($PyPre) + @('-u', 'capacity_test.py', '--server-dir', $Dir, '--outdir', '.\results') + @($TestArgs)
+$runArgs = @($PyPre) + @('-u', 'python/capacity_test.py', '--server-dir', $Dir, '--outdir', '.\results') + @($TestArgs)
 if ($Background) {
   $ts = Get-Date -Format 'yyyyMMdd-HHmmss'
   $log = "results\run-$ts.log"
